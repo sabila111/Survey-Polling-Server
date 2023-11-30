@@ -3,6 +3,7 @@ const cors = require('cors')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const jwt = require('jsonwebtoken');
+
 const app = express()
 const port = process.env.PORT || 5000
 
@@ -28,6 +29,7 @@ async function run() {
 
     await client.connect();
     const surveyCollection = client.db("surveyDB").collection("survey");
+    const surveyInfoCollection = client.db("surveyDB").collection("surveyInfo");
     const usersCollection = client.db("surveyDB").collection("users");
 
      // jwt related api
@@ -128,6 +130,22 @@ async function run() {
       res.send(result);
     })
 
+    app.get('/survey/recent', async (req, res) => {
+      try {
+        const recentSurveys = await surveyCollection
+          .find()
+          .sort({ createdAt: -1 }) // Sort by creation timestamp in descending order
+          .limit(6) // Limit the result to the most recent 6 surveys
+          .toArray();
+    
+        res.json(recentSurveys);
+      } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Internal Server Error' });
+      }
+    });
+    
+
     app.post('/survey', async (req, res) => {
 
       const job = req.body;
@@ -135,6 +153,51 @@ async function run() {
       const result = await surveyCollection.insertOne(job)
       res.send(result)
     })
+
+    // surveyInfo
+
+    app.get('/surveyInfo', async (req, res) => {
+      const result = await surveyInfoCollection.find().toArray();
+      res.send(result);
+    })
+
+    app.post('/surveyInfo', async (req, res) => {
+
+      const job = req.body;
+      console.log(job)
+      const result = await surveyInfoCollection.insertOne(job)
+      res.send(result)
+    })
+
+    app.patch('/surveyInfo/publish/:id', verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          role: 'publish',
+        },
+      };
+      const result = await surveyCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+    
+    app.patch('/surveyInfo/unpublish/:id', verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          role: 'Unpublish',
+        },
+      };
+      const result = await surveyCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+    
+
+
+    // payment side
+
+    
 
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
